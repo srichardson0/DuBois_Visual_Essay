@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>The Great Migration: 1900 - 2020</title>
+  <meta charset="utf-8">
+  <meta name="author" content="Sasha Richardson">
+  <meta name="description" content="An interactive visualization recreating W.E.B. Du Bois's 1900 Paris Exposition design to show African American migration patterns from 1900-2020">
+  
+  <script src="https://unpkg.com/d3@7"></script>
+  <script src="https://unpkg.com/topojson@3"></script>
+  <script src="https://unpkg.com/scrollama"></script>
+  
+  <style>
+    /* 🎨 General Setup & Reset */
+    body { 
+      margin: 0; 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      background-color: #f8f8f8;
+      line-height: 1.6;
+    }
+    
+    /* 📝 Introduction Section */
+    #introduction {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      text-align: center;
+    }
+    #introduction h1 {
+      color: #333;
+      font-size: 2.5em;
+      margin-bottom: 15px;
+    }
+    #introduction h2 {
+      color: #555;
+      font-size: 1.5em;
+      margin-top: 10px;
+    }
+    #introduction p {
+      color: #666;
+      font-size: 1.1em;
+    }
+
+    /* 🗺️ Scrollytelling Layout */
+    #scrolly {
+      position: relative;
+      display: flex;
+      max-width: 1400px; 
+      margin: 80px auto; 
+    }
+
+    /* 📝 Scrolling Text (Article) */
+    article {
+      position: relative;
+      width: 35%; 
+      max-width: 450px;
+      z-index: 10;
+      background-color: transparent; 
+      padding-right: 20px;
+    }
+
+    .step {
+      margin: 50vh auto 100vh auto; 
+      background-color: rgba(255, 255, 255, 0.95);
+      border: 1px solid #ddd;
+      padding: 1.5rem;
+      border-radius: 8px;
+      opacity: 0.3; 
+      transition: opacity 0.5s ease-in-out;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .step.is-active {
+      opacity: 1;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      border-left: 5px solid #5f3c28; /* Highlight with Du Bois Brown */
+    }
+
+    .step:last-child {
+      margin-bottom: 50vh;
+    }
+
+    /* 🖼️ Graphic Container (Map & Legend) */
+    figure {
+      position: sticky;
+      top: 0;
+      width: 65%; 
+      height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column; 
+      align-items: center;
+      justify-content: center;
+      z-index: 0;
+    }
+
+    #map-container {
+        flex-grow: 1; 
+        width: 100%; 
+        display: flex; 
+        align-items: center;
+        justify-content: center;
+    }
+    #map-container svg {
+      border: 1px solid #ccc; 
+    }
+    
+    /* D3 Map Title Styling */
+    .map-title {
+        font-family: serif;
+        font-weight: bold;
+        text-anchor: middle;
+        fill: #333;
+        text-transform: uppercase;
+    }
+    .map-subtitle {
+        font-family: serif;
+        font-size: 1.1em;
+        text-anchor: middle;
+        fill: #555;
+        text-transform: uppercase;
+    }
+    .map-caption {
+        font-family: serif;
+        font-size: 0.8em;
+        text-anchor: middle;
+        fill: #555;
+    }
+
+    /* 🏷️ Legend Styling */
+    .legend-item circle {
+        stroke: #777; 
+        stroke-width: 1;
+    }
+    .legend-item text {
+        font-size: 0.85em; 
+        fill: #333;
+        text-anchor: middle;
+        font-family: serif;
+    }
+
+    /* Annotation Styles */
+    .annotation text {
+        font-family: sans-serif;
+        font-size: 12px;
+        font-weight: bold;
+        
+        /* IMPROVED READABILITY: White Halo Stroke */
+        stroke: rgba(255, 255, 255, 0.9);
+        stroke-width: 3px;
+        paint-order: stroke fill; /* Ensures stroke is behind the text fill */
+        stroke-linejoin: round;
+    }
+    .rep-symbol {
+        fill: #d22e58; /* Star color (Du Bois Red) */
+        font-size: 14px;
+        /* Keep halo for symbol too for readability */
+        stroke: rgba(255, 255, 255, 0.9);
+        stroke-width: 3px;
+        paint-order: stroke fill;
+    }
+
+    /* NEW: Leader Line Style */
+    .annotation-leader {
+        stroke: #333;
+        stroke-width: 0.5px;
+    }
+    /* Map Controls (switches) */
+    #map-controls {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      z-index: 25;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: rgba(255,255,255,0.85);
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input { display: none; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .2s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      top: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .switch input:checked + .slider {
+      background: #d22e58;
+    }
+    .switch input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    .switch-label {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 0.9em;
+      color: #333;
+      user-select: none;
+      margin-right: 6px;
+    }
+    /* Comparison panel sizing and transitions */
+    #comparison {
+      transition: opacity 1000ms ease, transform 400ms ease;
+      opacity: 0;
+      transform: translateY(600px);
+      max-height: calc(100vh - 100px);
+      overflow: hidden;
+      display: flex;
+      gap: 4%;
+      justify-content: center;
+      align-items: flex-start;
+      flex-wrap: nowrap;
+    }
+    #comparison.show {
+      opacity: 1;
+      transform: translateY(0px);
+    }
+    /* Fixed overlay used during Overview to expand maps across the whole viewport */
+    #comparison.fixed-overlay {
+      position: centered;
+      top: 0;
+      left: 0;
+      right: 0;
+      width: 100vw;
+      padding: 20px 5%;
+      background: rgba(255,255,255,0.98);
+      z-index: 1200;
+      max-height: calc(100vh - 40px);
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    #comparison .panel {
+      width: 48%;
+      box-sizing: border-box;
+      vertical-align: top;
+    }
+    #comparison img, #snapshot-container > svg {
+      max-height: calc(100vh - 240px);
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <section id="introduction">
+    <h1>Recreating W.E.B. Du Bois's Data Visualizations</h1>
+    <h2>The Great Migration: 1900 - 2020</h2>
+    <p style="font-size: 1em; color: #777; margin: 10px 0 30px 0; font-style: italic;">
+    By Sasha Richardson
+    </p>
+    <p>
+        In 1900, W.E.B. Du Bois created groundbreaking data visualizations for the Paris Exposition 
+        to counter racist narratives and reveal the reality of Black life in America. His "Distribution 
+        of Negroes" map used precise colors and elegant design to show geographic concentration in the South.
+    </p>
+    <p>
+        This visualization honors Du Bois's innovative approach by applying his exact visual language—his 
+        color palette, typography, and layout—to tell the story of 120 years of demographic transformation. 
+        Using Census data, I trace how the Great Migration reshaped the 
+        American landscape and transformed political representation.
+    </p>
+    <img src="distribution_negroes.png" alt="Original W.E.B. Du Bois map">
+    <p style="margin-top: 30px; opacity: 0.8;">Scroll down to begin the timeline...</p>
+  </section>
+
+  <section id="scrolly">
+    <article>
+      <div class="step" data-step="1900">
+        <h3>1900: The Starting Point</h3>
+       <p>
+        When Du Bois created his original map, nearly 90% of African Americans lived in the South, 
+        concentrated in the "Black Belt" stretching from Virginia to Texas. The legacy of slavery 
+        created this geographic pattern; high density in former plantation regions.
+        </p>
+      </div>
+
+      <div class="step" data-step="1960">
+        <h3>1960: The Great Migration</h3>
+        <p>
+        Between 1900 and 1960, over 6 million African Americans moved from the rural South to 
+        industrial cities in the North and West—the largest internal migration in American history. 
+        Chicago, Detroit, New York, Philadelphia, and Los Angeles became major centers of Black life.
+        </p>
+        <p>
+        Despite this massive demographic shift and the growth of urban Black communities, political 
+        representation remained minimal. The civil rights movement was fighting for voting rights that 
+        would finally begin to translate population into power.
+        </p>
+        <p><strong>Annotations:</strong> Arrows indicate the percent growth from 1900 to 1960. <span style="color: #d22e58;">★</span> Stars indicate states with African American representatives.</p>
+      </div>
+
+      <div class="step" data-step="2020">
+        <h3>2020: The Modern Era</h3>
+        <p>
+        By 2020, the map tells a more complex story. The "Reverse Migration" brought many African 
+        Americans back to the South, drawn by economic opportunity, lower costs, and cultural connections. 
+        Meanwhile, the West Coast and major metros across all regions show sustained density.
+        </p>
+        <p>
+        Political representation has transformed dramatically: 58 African Americans serve in Congress 
+        , with representation extending from coast to coast. Yet this progress 
+        still falls short of proportional representation—13.6% of the population holds 11% of House seats.
+        </p>
+        <p>
+        <strong>What changed:</strong> The density patterns reflect both continued urbanization and 
+        the attractiveness of Southern metros like Atlanta, Houston, and Charlotte as economic engines.
+        </p>
+      </div>
+      
+       <div class="step" data-step="reset">
+        <h3>Then & Now: Du Bois's Vision Meets Modern Data</h3>
+        <p>
+        Compare Du Bois's original 1900 map with our 2020 recreation. While his map documented the 
+        constraints of post-slavery geography, today's map reveals the outcome of migration, struggle, 
+        and hard-won political gains.
+        </p>
+        <p>
+        Du Bois understood that data visualization was a tool for truth-telling and justice. By 
+        applying his aesthetic approach to contemporary data, we see both how far we've come and 
+        how his fundamental insight remains relevant: representation matters, and making inequality 
+        visible is the first step toward changing it.
+        </p>
+      </div>
+      
+    <p style="margin-top: 100vh; opacity: 0.6; padding: 1rem;">
+    <strong>About This Project</strong>
+    <br><br>
+    This interactive visualization recreates W.E.B. Du Bois's innovative design approach using 
+    modern data on African American population distribution and political representation. By 
+    maintaining fidelity to Du Bois's original color palette and typographic choices, it demonstrates 
+    how his century-old visual language remains powerful for contemporary data storytelling.
+    <br><br>
+    <strong>Created by:</strong> Sasha Richardson for Data Bias Course<br>
+    M.A. Digital Humanities | The Graduate Center, CUNY<br>
+    srichardson1@gradcenter.cuny.edu<br>
+    December 2025
+    <br><br>
+    <strong>Data Sources:</strong>
+    <ul>
+        <li>Population density per square mile: U.S. Census Bureau (1900, 1960, 2020) & American Community Survey</li>
+        <li>African American Congressional Representatives: Congressional Research Service & History, Art & Archives, U.S. House of Representatives</li>
+        <li>Geographic boundaries: Natural Earth & us-atlas/topojson</li>
+        <li>Original Du Bois visualizations: Library of Congress, W.E.B. Du Bois Collection</li>
+    </ul>
+    <br>
+    Inspired by the data visualization work of W.E.B. Du Bois for the 1900 Paris Exposition.
+    </p>
+    </article>
+
+    <figure>
+      <div id="map-container"></div>
+      <div id="map-controls">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <label class="switch"><input id="toggle-change" type="checkbox" checked><span class="slider"></span></label>
+          <div class="switch-label">Show Percent Change</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <label class="switch"><input id="toggle-reps" type="checkbox" checked><span class="slider"></span></label>
+          <div class="switch-label">Show AA Reps</div>
+        </div>
+      </div>
+      <div id="comparison" style="display:none; width:90%; max-width:1000px; margin-top:18px;">
+        <div id="original-panel" class="panel" style="width:48%; text-align:center; vertical-align:top;">
+          <div style="font-family: serif; font-weight:bold; margin-bottom:6px;">Original Map</div>
+          <img id="original-img" src="distribution_negroes.png" alt="Original" style="width:100%; height:auto; border:1px solid #ccc;" />
+        </div>
+        <div id="snapshot-panel" class="panel" style="width:48%; margin-left:4%; text-align:center; vertical-align:top;">
+          <div style="font-family: serif; font-weight:bold; margin-bottom:6px;">2020 Map (Snapshot)</div>
+          <div id="snapshot-container" style="width:100%; height:auto; border:1px solid #ccc; background:white; display:flex; align-items:center; justify-content:center; padding:6px;"></div>
+        </div>
+      </div>
+    </figure>
+  </section>
+
+  <script>
+    // ---------------------------------------------------------
+    // 1. EMBEDDED DATA (Combined)
+    // ---------------------------------------------------------
+    const STATE_DATA = {
+      "01": {"sqm_1900": 16, "sqm_1960": 19, "sqm_2020": 25, "change_1900_1960": 0.18, "change_1960_2020": 0.24, "reps_1900": 3, "reps_1960": 0, "reps_2020": 3, "state": "Alabama"},
+      "02": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 39.3, "change_1960_2020": 0.69, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Alaska"},
+      "04": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 3, "change_1900_1960": 22.49, "change_1960_2020": 0.87, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Arizona"},
+      "05": {"sqm_1900": 7, "sqm_1960": 7, "sqm_2020": 9, "change_1900_1960": 0.06, "change_1960_2020": 0.14, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Arkansas"},
+      "06": {"sqm_1900": 0, "sqm_1960": 5, "sqm_2020": 14, "change_1900_1960": 79.02, "change_1960_2020": 0.60, "reps_1900": 0, "reps_1960": 0, "reps_2020": 12, "state": "California"},
+      "08": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 3, "change_1900_1960": 3.65, "change_1960_2020": 0.82, "reps_1900": 0, "reps_1960": 0, "reps_2020": 1, "state": "Colorado"},
+      "09": {"sqm_1900": 3, "sqm_1960": 22, "sqm_2020": 75, "change_1900_1960": 6.13, "change_1960_2020": 0.70, "reps_1900": 0, "reps_1960": 0, "reps_2020": 2, "state": "Connecticut"},
+      "10": {"sqm_1900": 15, "sqm_1960": 31, "sqm_2020": 110, "change_1900_1960": 0.98, "change_1960_2020": 0.71, "reps_1900": 0, "reps_1960": 0, "reps_2020": 1, "state": "Delaware"},
+      "11": {"sqm_1900": 1275, "sqm_1960": 6055, "sqm_2020": 4203, "change_1900_1960": 3.75, "change_1960_2020": -0.44, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "District of Columbia"},
+      "12": {"sqm_1900": 4, "sqm_1960": 16, "sqm_2020": 58, "change_1900_1960": 2.85, "change_1960_2020": 0.72, "reps_1900": 1, "reps_1960": 0, "reps_2020": 6, "state": "Florida"},
+      "13": {"sqm_1900": 17, "sqm_1960": 19, "sqm_2020": 56, "change_1900_1960": 0.09, "change_1960_2020": 0.65, "reps_1900": 1, "reps_1960": 0, "reps_2020": 6, "state": "Georgia"},
+      "15": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 3, "change_1900_1960": 9.51, "change_1960_2020": 0.81, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Hawaii"},
+      "16": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 4.14, "change_1960_2020": 0.89, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Idaho"},
+      "17": {"sqm_1900": 1, "sqm_1960": 18, "sqm_2020": 32, "change_1900_1960": 11.08, "change_1960_2020": 0.42, "reps_1900": 0, "reps_1960": 3, "reps_2020": 11, "state": "Illinois"},
+      "18": {"sqm_1900": 1, "sqm_1960": 7, "sqm_2020": 18, "change_1900_1960": 3.73, "change_1960_2020": 0.58, "reps_1900": 0, "reps_1960": 1, "reps_2020": 3, "state": "Indiana"},
+      "19": {"sqm_1900": 0, "sqm_1960": 1, "sqm_2020": 2, "change_1900_1960": 2.76, "change_1960_2020": 0.75, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Iowa"},
+      "20": {"sqm_1900": 0, "sqm_1960": 1, "sqm_2020": 2, "change_1900_1960": 0.77, "change_1960_2020": 0.58, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Kansas"},
+      "21": {"sqm_1900": 7, "sqm_1960": 5, "sqm_2020": 9, "change_1900_1960": -0.24, "change_1960_2020": 0.45, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Kentucky"},
+      "22": {"sqm_1900": 14, "sqm_1960": 23, "sqm_2020": 35, "change_1900_1960": 0.59, "change_1960_2020": 0.35, "reps_1900": 1, "reps_1960": 0, "reps_2020": 4, "state": "Louisiana"},
+      "23": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 1.50, "change_1960_2020": 0.85, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Maine"},
+      "24": {"sqm_1900": 24, "sqm_1960": 53, "sqm_2020": 185, "change_1900_1960": 1.18, "change_1960_2020": 0.71, "reps_1900": 0, "reps_1960": 0, "reps_2020": 5, "state": "Maryland"},
+      "25": {"sqm_1900": 4, "sqm_1960": 14, "sqm_2020": 63, "change_1900_1960": 2.47, "change_1960_2020": 0.77, "reps_1900": 0, "reps_1960": 0, "reps_2020": 1, "state": "Massachusetts"},
+      "26": {"sqm_1900": 0, "sqm_1960": 12, "sqm_2020": 24, "change_1900_1960": 44.38, "change_1960_2020": 0.48, "reps_1900": 0, "reps_1960": 2, "reps_2020": 5, "state": "Michigan"},
+      "27": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 5, "change_1900_1960": 3.49, "change_1960_2020": 0.94, "reps_1900": 0, "reps_1960": 0, "reps_2020": 2, "state": "Minnesota"},
+      "28": {"sqm_1900": 19, "sqm_1960": 19, "sqm_2020": 22, "change_1900_1960": 0.01, "change_1960_2020": 0.15, "reps_1900": 2, "reps_1960": 0, "reps_2020": 2, "state": "Mississippi"},
+      "29": {"sqm_1900": 2, "sqm_1960": 5, "sqm_2020": 10, "change_1900_1960": 1.43, "change_1960_2020": 0.45, "reps_1900": 0, "reps_1960": 0, "reps_2020": 3, "state": "Missouri"},
+      "30": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": -0.04, "change_1960_2020": 0.70, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Montana"},
+      "31": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 1, "change_1900_1960": 3.65, "change_1960_2020": 0.70, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Nebraska"},
+      "32": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 3, "change_1900_1960": 99.63, "change_1960_2020": 0.96, "reps_1900": 0, "reps_1960": 0, "reps_2020": 1, "state": "Nevada"},
+      "33": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 2, "change_1900_1960": 1.87, "change_1960_2020": 0.90, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "New Hampshire"},
+      "34": {"sqm_1900": 9, "sqm_1960": 69, "sqm_2020": 161, "change_1900_1960": 6.32, "change_1960_2020": 0.58, "reps_1900": 0, "reps_1960": 0, "reps_2020": 2, "state": "New Jersey"},
+      "35": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 9.47, "change_1960_2020": 0.65, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "New Mexico"},
+      "36": {"sqm_1900": 2, "sqm_1960": 29, "sqm_2020": 65, "change_1900_1960": 13.25, "change_1960_2020": 0.55, "reps_1900": 0, "reps_1960": 1, "reps_2020": 9, "state": "New York"},
+      "37": {"sqm_1900": 12, "sqm_1960": 23, "sqm_2020": 45, "change_1900_1960": 0.79, "change_1960_2020": 0.49, "reps_1900": 4, "reps_1960": 0, "reps_2020": 3, "state": "North Carolina"},
+      "38": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 1.72, "change_1960_2020": 0.97, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "North Dakota"},
+      "39": {"sqm_1900": 2, "sqm_1960": 19, "sqm_2020": 34, "change_1900_1960": 7.10, "change_1960_2020": 0.44, "reps_1900": 0, "reps_1960": 0, "reps_2020": 4, "state": "Ohio"},
+      "40": {"sqm_1900": 0, "sqm_1960": 2, "sqm_2020": 4, "change_1900_1960": 1.76, "change_1960_2020": 0.48, "reps_1900": 0, "reps_1960": 0, "reps_2020": 1, "state": "Oklahoma"},
+      "41": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 15.34, "change_1960_2020": 0.78, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Oregon"},
+      "42": {"sqm_1900": 3, "sqm_1960": 18, "sqm_2020": 34, "change_1900_1960": 4.41, "change_1960_2020": 0.45, "reps_1900": 0, "reps_1960": 1, "reps_2020": 3, "state": "Pennsylvania"},
+      "44": {"sqm_1900": 8, "sqm_1960": 17, "sqm_2020": 60, "change_1900_1960": 1.02, "change_1960_2020": 0.72, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Rhode Island"},
+      "45": {"sqm_1900": 25, "sqm_1960": 27, "sqm_2020": 42, "change_1900_1960": 0.06, "change_1960_2020": 0.35, "reps_1900": 8, "reps_1960": 0, "reps_2020": 1, "state": "South Carolina"},
+      "46": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 1.40, "change_1960_2020": 0.94, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "South Dakota"},
+      "47": {"sqm_1900": 11, "sqm_1960": 14, "sqm_2020": 26, "change_1900_1960": 0.22, "change_1960_2020": 0.47, "reps_1900": 0, "reps_1960": 0, "reps_2020": 2, "state": "Tennessee"},
+      "48": {"sqm_1900": 2, "sqm_1960": 4, "sqm_2020": 14, "change_1900_1960": 0.93, "change_1960_2020": 0.67, "reps_1900": 0, "reps_1960": 0, "reps_2020": 7, "state": "Texas"},
+      "49": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 5.16, "change_1960_2020": 0.89, "reps_1900": 0, "reps_1960": 0, "reps_2020": 1, "state": "Utah"},
+      "50": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": -0.37, "change_1960_2020": 0.94, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Vermont"},
+      "51": {"sqm_1900": 16, "sqm_1960": 20, "sqm_2020": 47, "change_1900_1960": 0.24, "change_1960_2020": 0.56, "reps_1900": 1, "reps_1960": 0, "reps_2020": 2, "state": "Virginia"},
+      "53": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 4, "change_1900_1960": 18.67, "change_1960_2020": 0.88, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Washington"},
+      "54": {"sqm_1900": 1, "sqm_1960": 3, "sqm_2020": 2, "change_1900_1960": 1.05, "change_1960_2020": -0.28, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "West Virginia"},
+      "55": {"sqm_1900": 0, "sqm_1960": 1, "sqm_2020": 7, "change_1900_1960": 29.80, "change_1960_2020": 0.83, "reps_1900": 0, "reps_1960": 0, "reps_2020": 1, "state": "Wisconsin"},
+      "56": {"sqm_1900": 0, "sqm_1960": 0, "sqm_2020": 0, "change_1900_1960": 1.20, "change_1960_2020": 0.69, "reps_1900": 0, "reps_1960": 0, "reps_2020": 0, "state": "Wyoming"}
+    };
+
+    // NEW: Automatic annotation layout to avoid overlaps
+    // We compute initial label positions radially from the state's centroid
+    // and then relax positions to resolve collisions.
+
+    function computeInitialLabelPositions(data) {
+      // Start with labels exactly at centroid (centered annotations)
+      data.forEach((d) => {
+        if (!d.centroid || isNaN(d.centroid[0])) {
+          d.labelPos = null;
+          return;
+        }
+        d.labelPos = [d.centroid[0], d.centroid[1]];
+      });
+    }
+
+    function relaxLabelPositions(data, iterations = 200, minDist = 28) {
+      const n = data.length;
+      for (let iter = 0; iter < iterations; iter++) {
+        let moved = false;
+        for (let i = 0; i < n; i++) {
+          const a = data[i];
+          if (!a.labelPos) continue;
+          for (let j = i + 1; j < n; j++) {
+            const b = data[j];
+            if (!b.labelPos) continue;
+            let dx = b.labelPos[0] - a.labelPos[0];
+            let dy = b.labelPos[1] - a.labelPos[1];
+            let dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+            if (dist < minDist) {
+              // push both labels apart, but bias outward from their centroids
+              const overlap = (minDist - dist) / 2;
+              const nx = dx / dist;
+              const ny = dy / dist;
+              // bias vectors based on whether label already moved from centroid
+              const aMoved = Math.hypot(a.labelPos[0] - a.centroid[0], a.labelPos[1] - a.centroid[1]) > 1;
+              const bMoved = Math.hypot(b.labelPos[0] - b.centroid[0], b.labelPos[1] - b.centroid[1]) > 1;
+              const biasA = aMoved ? 0.6 : 0.4;
+              const biasB = bMoved ? 0.6 : 0.4;
+              a.labelPos[0] -= nx * overlap * biasA;
+              a.labelPos[1] -= ny * overlap * biasA;
+              b.labelPos[0] += nx * overlap * biasB;
+              b.labelPos[1] += ny * overlap * biasB;
+              moved = true;
+            }
+          }
+          // Keep labels inside svg bounds (rough clamp)
+          a.labelPos[0] = Math.max(6, Math.min(width - 6, a.labelPos[0]));
+          a.labelPos[1] = Math.max(6, Math.min(height - MAP_Y_OFFSET - 6, a.labelPos[1]));
+        }
+        if (!moved) break;
+      }
+    }
+
+    function layoutAnnotationLabels(selection) {
+      const data = selection.data();
+      computeInitialLabelPositions(data);
+      relaxLabelPositions(data);
+
+      // update DOM positions for lines and texts
+      selection.select('.annotation-leader')
+        .attr('x2', d => d.labelPos ? d.labelPos[0] : d.centroid[0])
+        .attr('y2', d => d.labelPos ? d.labelPos[1] : d.centroid[1]);
+
+      // Only show leader lines where the label moved noticeably from centroid
+      selection.select('.annotation-leader')
+        .style('opacity', d => {
+          if (!d.labelPos) return 0;
+          const dx = d.labelPos[0] - d.centroid[0];
+          const dy = d.labelPos[1] - d.centroid[1];
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          return dist > 8 ? 1 : 0; // threshold for showing line
+        });
+
+      selection.select('.change-text')
+        .attr('transform', d => `translate(${d.labelPos ? d.labelPos[0] : d.centroid[0]}, ${d.labelPos ? d.labelPos[1] : d.centroid[1]})`)
+        .attr('text-anchor', d => {
+          if (!d.labelPos) return 'middle';
+          const dx = d.labelPos[0] - d.centroid[0];
+          if (Math.abs(dx) < 8) return 'middle';
+          return dx > 0 ? 'start' : 'end';
+        });
+
+      selection.select('.rep-symbol')
+        .attr('transform', d => `translate(${d.labelPos ? d.labelPos[0] : d.centroid[0]}, ${d.labelPos ? d.labelPos[1] : d.centroid[1]})`)
+        .attr('text-anchor', d => {
+          if (!d.labelPos) return 'middle';
+          const dx = d.labelPos[0] - d.centroid[0];
+          if (Math.abs(dx) < 8) return 'middle';
+          return dx > 0 ? 'start' : 'end';
+        })
+        .attr('y', 10);
+    }
+
+    // Tooltip for state names
+    const tooltip = d3.select("body").append("div")
+      .attr("id", "state-tooltip")
+      .style("position", "absolute")
+      .style("pointer-events", "none")
+      .style("background", "rgba(0,0,0,0.75)")
+      .style("color", "white")
+      .style("padding", "6px 8px")
+      .style("border-radius", "4px")
+      .style("font-size", "0.85em")
+      .style("font-family", "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif")
+      .style("display", "none");
+
+    // Toggle & State helpers
+    let CURRENT_STEP = '1900';
+    let showPercentToggle = true;
+    let showRepsToggle = true;
+
+    // Expose placeholders for selections so toggles can re-render
+    let statePathsSelection = null;
+    let annotationsSelection = null;
+
+    // Thresholds used for category bins (must match colorScale.domain())
+    const DENSITY_THRESHOLDS = [1, 4, 8, 15, 25];
+
+    function getDensityCategory(val) {
+      // val may be 0 or null -> return -1 (no category)
+      if (val == null || isNaN(val) || val === 0) return -1;
+      for (let i = 0; i < DENSITY_THRESHOLDS.length; i++) {
+        if (val < DENSITY_THRESHOLDS[i]) return i;
+      }
+      return DENSITY_THRESHOLDS.length; // highest bucket
+    }
+
+    // ---------------------------------------------------------
+    // 2. CONFIGURATION & SCROLLAMA
+    // ---------------------------------------------------------
+    const scroller = scrollama();
+    const mapContainer = d3.select("#map-container");
+
+    const width = 1000; 
+    const height = 750; 
+    
+    // Y-Offset adjusted for the two-line title
+    const MAP_Y_OFFSET = 120; 
+
+    // Du Bois Inspired Color Scale (Using precise hex from reference)
+    // <1: Grey, 1-4: Yellow, 4-8: Blue, 8-15: Pink/Red, 15-25: Brown, >25: Black
+    const colorScale = d3.scaleThreshold()
+      .domain([1, 4, 8, 15, 25])
+      .range(["#e0b45b", "#002d7f", "#d22e58", "#5f3c28", "#161613", "#800080"]);
+
+    const projection = d3.geoAlbersUsa()
+      .translate([width / 2, height / 2])
+      .scale(1000); // 📉 Reduced scale (was 1300) to shrink map
+
+    const path = d3.geoPath().projection(projection);
+
+    const svg = mapContainer.append("svg")
+      .attr("viewBox", `0 0 ${width} ${height}`) 
+      .style("width", "100%")
+      .style("height", "auto")
+      .style("background-color", "#dbcfc2"); // Vintage Beige Background
+
+    const mapGroup = svg.append("g")
+        .attr("transform", `translate(0, ${MAP_Y_OFFSET})`); 
+
+    // 🏆 Dynamic Titles setup
+    const titleEnglish = svg.append("text")
+        .attr("class", "map-title")
+        .attr("x", width / 2)
+        .attr("y", 40)
+        .style("font-size", "1.6em")
+        .text("DISTRIBUTION OF NEGROES...");
+
+    const titleFrench = svg.append("text")
+        .attr("class", "map-subtitle")
+        .attr("x", width / 2)
+        .attr("y", 70)
+        .style("font-size", "1.1em")
+        .text("DISTRIBUTION DES NÈGRES...");
+
+    // ---------------------------------------------------------
+    // 3. MAIN RENDER LOGIC
+    // ---------------------------------------------------------
+    d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then((us) => {
+      
+      const states = topojson.feature(us, us.objects.states).features;
+
+      // Draw States
+      statePathsSelection = mapGroup.selectAll("path") 
+        .data(states)
+        .join("path")
+        .attr("d", path)
+        .attr("stroke", "#555") 
+        .attr("stroke-width", 0.5)
+        .attr("fill", d => getColor(d.id, "sqm_1900"))
+        .style("fill-opacity", 0.85);
+
+
+      // Add Annotation Groups (Centroids)
+      annotationsSelection = mapGroup.selectAll(".annotation")
+        .data(states.filter(d => path.centroid(d) && !isNaN(path.centroid(d)[0]))) 
+        .join("g")
+        .attr("class", "annotation");
+
+      // Pre-calculate/store centroid and offset for line drawing
+        annotationsSelection.each(function(d) {
+          const id = d.id.padStart(2, '0');
+          const centroid = path.centroid(d);
+          d.centroid = centroid;
+        });
+
+
+      // Add Leader Line (connects centroid to new text position)
+      annotationsSelection.append("line")
+        .attr("class", "annotation-leader")
+        .attr("x1", d => d.centroid[0])
+        .attr("y1", d => d.centroid[1])
+        .attr("x2", d => d.centroid[0])
+        .attr("y2", d => d.centroid[1])
+        .style("opacity", 0); // Start hidden
+
+      // Add Change Text (e.g. +18%) - Position relative to new offset point
+      annotationsSelection.append("text")
+        .attr("class", "change-text")
+        .attr("transform", d => `translate(${d.centroid[0]}, ${d.centroid[1]})`)
+        .attr("text-anchor", "middle")
+        .attr("y", -5);
+
+      // Add Rep Symbol (Star + Count) - Position relative to new offset point
+      annotationsSelection.append("text")
+        .attr("class", "rep-symbol")
+        .attr("transform", d => `translate(${d.centroid[0]}, ${d.centroid[1]})`)
+        .attr("text-anchor", "middle")
+        .attr("y", 10)
+        .text("");
+
+      // Attach hover handlers for tooltip
+      annotationsSelection
+        .on('mouseenter', function(event, d) {
+          const id = d.id.padStart(2, '0');
+          const name = STATE_DATA[id] ? STATE_DATA[id].state : 'Unknown';
+          tooltip.style('display', 'block').text(name);
+        })
+        .on('mousemove', function(event) {
+          const x = event.pageX + 12;
+          const y = event.pageY + 12;
+          tooltip.style('left', x + 'px').style('top', y + 'px');
+        })
+        .on('mouseleave', function() {
+          tooltip.style('display', 'none');
+        });
+
+      // Draw Legend (Reference Style + Annotation Legend)
+      drawLegend();
+      // Initial layout to position annotation labels and leader lines
+      layoutAnnotationLabels(annotationsSelection);
+      // Wire toggles (checkbox switches) to re-render annotation text/symbols
+      d3.select("#toggle-change").on("change", function() {
+        showPercentToggle = this.checked;
+        updateMap(CURRENT_STEP, statePathsSelection, annotationsSelection);
+      });
+
+      d3.select("#toggle-reps").on("change", function() {
+        showRepsToggle = this.checked;
+        updateMap(CURRENT_STEP, statePathsSelection, annotationsSelection);
+      });
+      
+      // Setup Scrollama
+      scroller
+        .setup({
+          step: ".step",
+          offset: 0.5,
+          debug: false
+        })
+          .onStepEnter(response => {
+            const step = response.element.getAttribute("data-step");
+            CURRENT_STEP = step;
+
+            // If Overview/reset step: auto-turn off toggles and show comparison
+            if (step === 'reset') {
+              // turn off switches
+              const changeBox = document.getElementById('toggle-change');
+              const repsBox = document.getElementById('toggle-reps');
+              if (changeBox) { changeBox.checked = false; showPercentToggle = false; }
+              if (repsBox) { repsBox.checked = false; showRepsToggle = false; }
+
+              // Force map to 2020 state then smoothly transition into the comparison view
+              updateMap('2020', statePathsSelection, annotationsSelection);
+
+              // fade out the live map container, then show comparison with a clone snapshot
+              const mapSel = d3.select('#map-container');
+              mapSel.transition().duration(700).style('opacity', 0).on('end', function() {
+                try {
+                  // hide main svg container after fade
+                  mapSel.style('display', 'none');
+
+                  // prepare snapshot container
+                  const snapContainer = document.getElementById('snapshot-container');
+                  snapContainer.innerHTML = '';
+                  const clone = svg.node().cloneNode(true);
+                  // remove map-controls from clone if present
+                  const controls = clone.querySelector('#map-controls');
+                  if (controls) controls.remove();
+                  // ensure clone scales to container
+                  clone.style.width = '100%';
+                  clone.style.height = 'auto';
+                  // remove any inline opacity on map container inside clone to avoid double-hidden content
+                  const innerMap = clone.querySelector('#map-container');
+                  if (innerMap) innerMap.style.opacity = 1;
+
+                  snapContainer.appendChild(clone);
+
+                  // show comparison panel with a smooth class-based transition (use flex to keep panels side-by-side)
+                  const comp = d3.select('#comparison');
+                  comp.style('display', 'flex');
+                  // Make the comparison a fixed full-width overlay so maps can use the article space
+                  comp.classed('fixed-overlay', true);
+                  // small timeout to allow the browser to register display change before animating
+                  setTimeout(() => comp.classed('show', true), 20);
+                } catch (e) {
+                  console.error(e);
+                }
+              });
+            } else {
+              // Not Overview: if comparison is visible, fade it out and remove snapshot, then show main map
+              const comp = d3.select('#comparison');
+              if (comp.size() && comp.style('display') !== 'none') {
+                // hide comparison smoothly
+                comp.classed('show', false);
+                setTimeout(() => {
+                  try {
+                    // remove fixed overlay class and hide comparison
+                    comp.classed('fixed-overlay', false);
+                    comp.style('display', 'none');
+                    const snap = document.getElementById('snapshot-container');
+                    if (snap) snap.innerHTML = '';
+                    // show and fade in main map
+                    const mapSel = d3.select('#map-container');
+                    mapSel.style('display', 'flex').style('opacity', 0);
+                    mapSel.transition().duration(700).style('opacity', 1);
+                  } catch (e) { console.error(e); }
+                }, 420);
+              } else {
+                d3.select('#map-container').style('display', 'flex').style('opacity', 1);
+              }
+              // update map for the given step
+              updateMap(step, statePathsSelection, annotationsSelection);
+            }
+
+            d3.selectAll(".step").classed("is-active", false);
+            d3.select(response.element).classed("is-active", true);
+          });
+    });
+
+    // ---------------------------------------------------------
+    // 4. UPDATE FUNCTIONS
+    // ---------------------------------------------------------
+    
+    function getColor(fips, column) {
+        const id = fips.padStart(2, '0'); 
+        const data = STATE_DATA[id];
+        if (!data) return "#ccc";
+        // Handle DC as an outlier which is black
+        if (id === '11') return "#161613";
+        return colorScale(data[column]);
+    }
+
+    function updateMap(step, paths, annotations) {
+        let metric = "sqm_1900";
+        let changeCol = null;
+        let repCol = "reps_1900";
+        let textEng = "DISTRIBUTION OF NEGROES IN THE UNITED STATES.";
+        let textFr = "DISTRIBUTION DES NÈGRES DAN LES ETATS UNIS.";
+        let showAnnotations = false;
+
+
+        if (step === "1900") {
+            metric = "sqm_1900";
+            repCol = "reps_1900";
+            changeCol = null;
+        } 
+        else if (step === "1960") {
+            metric = "sqm_1960";
+            repCol = "reps_1960";
+            changeCol = "change_1900_1960";
+            textEng = "THE GREAT MIGRATION";
+            textFr = "LA GRANDE MIGRATION";
+            showAnnotations = true;
+        } 
+        else if (step === "2020" || step === "reset") {
+            metric = "sqm_2020";
+            repCol = "reps_2020";
+            changeCol = "change_1960_2020";
+            textEng = "DISTRIBUTION OF AFRICAN AMERICANS";
+            textFr = "DISTRIBUTION DES AFRO-AMÉRICAINS";
+            showAnnotations = true;
+        }
+
+        // 1. Update Titles
+        titleEnglish.text(textEng);
+        titleFrench.text(textFr);
+
+        // Update legend/caption based on metric (use modern phrasing for 2020)
+        try {
+          const caption = d3.select('#map-caption');
+          if (!caption.empty()) {
+            if (step === '1960') {
+              caption.text('BLACKS TO THE SQUARE MILE.');
+            } else if (step === '2020' || step === 'reset') {
+              caption.text('AFRICAN AMERICANS TO THE SQUARE MILE.');
+            } else {
+              caption.text('NEGROES TO THE SQUARE MILE.');
+            }
+          }
+        } catch (e) { console.error(e); }
+
+        // 2. Update Map Colors
+        paths.transition().duration(1500)
+            .attr("fill", d => getColor(d.id, metric));
+
+        // 3. Update Annotations Text/Symbols (Fade out -> Update Text -> Fade in)
+        annotations.transition().duration(500).style("opacity", 0)
+        .on("end", function() {
+          // Text update happens here, after fade-out
+          const d = d3.select(this).datum();
+          const id = d.id.padStart(2, '0');
+
+          // 1. Update Change Text (only when toggle is ON and when category changed)
+          d3.select(this).select(".change-text")
+            .text(() => {
+              if (!changeCol || !showPercentToggle) return "";
+              const prevMetric = changeCol === "change_1900_1960" ? "sqm_1900" : "sqm_1960";
+              const prevVal = STATE_DATA[id] ? STATE_DATA[id][prevMetric] : null;
+              const currVal = STATE_DATA[id] ? STATE_DATA[id][metric] : null;
+              const prevCat = getDensityCategory(prevVal);
+              const currCat = getDensityCategory(currVal);
+              if (prevCat === currCat) return "";
+              const val = STATE_DATA[id] ? STATE_DATA[id][changeCol] : 0;
+              if (!val) return "";
+              const pct = Math.round(val * 100);
+              const arrow = pct > 0 ? "↑" : "↓";
+              return `${arrow} ${Math.abs(pct)}%`;
+            })
+            .attr("fill", () => {
+              if (!changeCol || !showPercentToggle) return "#333";
+              const val = STATE_DATA[id] ? STATE_DATA[id][changeCol] : 0;
+              if (val > 0) return "#2E7D32"; // Green (Positive)
+              if (val < 0) return "#C62828"; // Red (Negative)
+              return "#333";
+            });
+
+          // 2. Update Rep Symbol (only when toggle is ON)
+          d3.select(this).select(".rep-symbol")
+            .text(() => {
+              if (!showRepsToggle) return "";
+              const count = STATE_DATA[id] ? STATE_DATA[id][repCol] : 0;
+              return count > 0 ? `★ ${count}` : "";
+            });
+        })
+        .transition().duration(500).delay(200) // Fade in
+        .style("opacity", showAnnotations ? 1 : 0);
+
+        // 4. Update Leader Lines (Separate transition)
+        if (showAnnotations) {
+          // Recompute layout to avoid collisions when annotations are visible
+          layoutAnnotationLabels(annotations);
+        }
+        annotations.select(".annotation-leader")
+            .transition().duration(1000)
+            .attr('x2', d => d.labelPos ? d.labelPos[0] : d.centroid[0])
+            .attr('y2', d => d.labelPos ? d.labelPos[1] : d.centroid[1])
+            .style("opacity", showAnnotations ? 
+                   function(d) { 
+                     const dx = d.labelPos ? (d.labelPos[0] - d.centroid[0]) : 0;
+                     const dy = d.labelPos ? (d.labelPos[1] - d.centroid[1]) : 0;
+                     return (Math.abs(dx) > 1 || Math.abs(dy) > 1) ? 1 : 0; 
+                   } : 0);
+        
+        // 5. (No separate annotation legend; UI controlled by toggles)
+    }
+
+
+    // 🏷️ Legend Drawing Function (Reference Style: Circles + Text Below)
+    function drawLegend() {
+      const categories = ["LESS THAN 1", "1-4", "4-8", "8-15", "15-25", "OVER 25"];
+      const colors = ["#e0b45b", "#002d7f", "#d22e58", "#5f3c28", "#161613", "#800080"];
+      
+      const itemWidth = 110; 
+      const startX = width / 2 - (categories.length * itemWidth) / 2 + (itemWidth / 2); 
+      const startY = 125; 
+      const circleRadius = 12;
+
+      const legend = svg.append("g");
+
+      // 1. Color Legend
+      const legendItems = legend.selectAll(".legend-item")
+        .data(categories)
+        .join("g")
+        .attr("class", "legend-item")
+        .attr("transform", (d, i) => `translate(${startX + i * itemWidth}, ${startY})`);
+
+      // Circle
+      legendItems.append("circle")
+        .attr("r", circleRadius)
+        .attr("fill", (d, i) => colors[i]);
+
+      // Text
+      legendItems.append("text")
+        .attr("y", circleRadius + 18) 
+        .text(d => d);
+        
+      // Caption 
+      svg.append("text")
+         .attr("id", "map-caption")
+         .attr("class", "map-caption")
+         .attr("x", width / 2)
+         .attr("y", startY + 50) 
+         .text("NEGROES TO THE SQUARE MILE.");
+
+
+      }
+
+  </script>
+</body>
+</html>
