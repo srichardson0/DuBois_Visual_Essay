@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/scrollama"></script>
   
   <style>
-    /* 🎨 General Setup & Reset */
+    /* General Setup & Reset */
     body { 
       margin: 0; 
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -19,7 +19,7 @@
       line-height: 1.6;
     }
     
-    /* 📝 Introduction Section */
+    /* Introduction Section */
     #introduction {
       max-width: 800px;
       margin: 40px auto;
@@ -28,7 +28,7 @@
     }
     #introduction h1 {
       color: #333;
-      font-size: 2.5em;
+      font-size: 2em;
       margin-bottom: 15px;
     }
     #introduction h2 {
@@ -37,7 +37,7 @@
       margin-top: 10px;
     }
     #introduction p {
-      color: #666;
+      color: #0c0b0b;
       font-size: 1.1em;
     }
 
@@ -271,8 +271,8 @@
 <body>
 
   <section id="introduction">
-    <h1>Recreating W.E.B. Du Bois's Data Visualizations</h1>
-    <h2>The Great Migration: 1900 - 2020</h2>
+    <h1>A Digital Pastiche of W.E.B. Du Bois’s 1900 Paris Exposition Map</h1>
+    <!-- <h2>The Great Migration: 1900 - 2020</h2> -->
     <p style="font-size: 1em; color: #777; margin: 10px 0 30px 0; font-style: italic;">
     By Sasha Richardson
     </p>
@@ -282,10 +282,8 @@
         of Negroes" map used precise colors and elegant design to show geographic concentration in the South.
     </p>
     <p>
-        This visualization honors Du Bois's innovative approach by applying his exact visual language—his 
-        color palette, typography, and layout—to tell the story of 120 years of demographic transformation. 
-        Using Census data, I trace how the Great Migration reshaped the 
-        American landscape and transformed political representation.
+        This visualization honors Du Bois's innovative approach by applying his visual language (his 
+        color palette, typography, and layout) to tell the story of 120 years of demographic transformation. 
     </p>
     <img src="distribution_negroes.png" alt="Original W.E.B. Du Bois map">
     <p style="margin-top: 30px; opacity: 0.8;">Scroll down to begin the timeline...</p>
@@ -326,8 +324,7 @@
         </p>
         <p>
         Political representation has transformed dramatically: 58 African Americans serve in Congress 
-        , with representation extending from coast to coast. Yet this progress 
-        still falls short of proportional representation—13.6% of the population holds 11% of House seats.
+        , with representation extending from coast to coast.
         </p>
         <p>
         <strong>What changed:</strong> The density patterns reflect both continued urbanization and 
@@ -365,13 +362,16 @@
     <br><br>
     <strong>Data Sources:</strong>
     <ul>
-        <li>Population density per square mile: U.S. Census Bureau (1900, 1960, 2020) & American Community Survey</li>
-        <li>African American Congressional Representatives: Congressional Research Service & History, Art & Archives, U.S. House of Representatives</li>
         <li>Geographic boundaries: Natural Earth & us-atlas/topojson</li>
-        <li>Original Du Bois visualizations: Library of Congress, W.E.B. Du Bois Collection</li>
+        <li>Jonathan Schroeder, David Van Riper, Steven Manson, Katherine Knowles, Tracy Kugler, Finn Roberts, and Steven Ruggles. 
+          IPUMS National Historical Geographic Information System: Version 20.0 NT7. Non-White Population by Race by Sex. Minneapolis, MN: IPUMS. 2025. http://doi.org/10.18128/D050.V20.0</li>
+        <li>Jonathan Schroeder, David Van Riper, Steven Manson, Katherine Knowles, Tracy Kugler, Finn Roberts, and Steven Ruggles. 
+          IPUMS National Historical Geographic Information System: Version 20.0 NT13. Sex by Race. Minneapolis, MN: IPUMS. 2025. http://doi.org/10.18128/D050.V20.0</li>
+        <li>Jonathan Schroeder, David Van Riper, Steven Manson, Katherine Knowles, Tracy Kugler, Finn Roberts, and Steven Ruggles. 
+          IPUMS National Historical Geographic Information System: Version 20.0 P3. Race. Minneapolis, MN: IPUMS. 2025. http://doi.org/10.18128/D050.V20.0</li>
+        <li>Wikipedia Contributors. List of African-American United States Representatives. Wikipedia; Wikimedia Foundation. 
+          https://en.wikipedia.org/wiki/List_of_African-American_United_States_Representatives</li>
     </ul>
-    <br>
-    Inspired by the data visualization work of W.E.B. Du Bois for the 1900 Paris Exposition.
     </p>
     </article>
 
@@ -392,8 +392,8 @@
           <div style="font-family: serif; font-weight:bold; margin-bottom:6px;">Original Map</div>
           <img id="original-img" src="distribution_negroes.png" alt="Original" style="width:100%; height:auto; border:1px solid #ccc;" />
         </div>
-        <div id="snapshot-panel" class="panel" style="width:48%; margin-left:4%; text-align:center; vertical-align:top;">
-          <div style="font-family: serif; font-weight:bold; margin-bottom:6px;">2020 Map (Snapshot)</div>
+        <div id="snapshot-panel" class="panel" style="width:58%; margin-left:4%; text-align:center; vertical-align:top;">
+          <div style="font-family: serif; font-weight:bold; margin-bottom:6px;">2020 Map</div>
           <div id="snapshot-container" style="width:100%; height:auto; border:1px solid #ccc; background:white; display:flex; align-items:center; justify-content:center; padding:6px;"></div>
         </div>
       </div>
@@ -598,14 +598,13 @@
     const MAP_Y_OFFSET = 120; 
 
     // Du Bois Inspired Color Scale (Using precise hex from reference)
-    // <1: Grey, 1-4: Yellow, 4-8: Blue, 8-15: Pink/Red, 15-25: Brown, >25: Black
     const colorScale = d3.scaleThreshold()
       .domain([1, 4, 8, 15, 25])
       .range(["#e0b45b", "#002d7f", "#d22e58", "#5f3c28", "#161613", "#800080"]);
 
     const projection = d3.geoAlbersUsa()
       .translate([width / 2, height / 2])
-      .scale(1000); // 📉 Reduced scale (was 1300) to shrink map
+      .scale(1000); 
 
     const path = d3.geoPath().projection(projection);
 
@@ -839,7 +838,7 @@
             repCol = "reps_1960";
             changeCol = "change_1900_1960";
             textEng = "THE GREAT MIGRATION";
-            textFr = "LA GRANDE MIGRATION";
+            textFr = "LE GRANDE MIGRATION";
             showAnnotations = true;
         } 
         else if (step === "2020" || step === "reset") {
